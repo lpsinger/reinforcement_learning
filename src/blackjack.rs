@@ -95,7 +95,7 @@ fn display_policy(policy: HashMap<State, bool>) {
 fn main() {
     let mut rng = rand::rng();
     let policy: HashMap<State, bool> = train_monte_carlo_exploring_starts(
-        1000000,
+        10000000,
         |rng| {
             (
                 State {
@@ -126,7 +126,7 @@ fn main() {
             return (
                 None,
                 if dealer_sum > 21 {
-                    -1
+                    1
                 } else {
                     state.sum.cmp(&dealer_sum) as i64
                 },

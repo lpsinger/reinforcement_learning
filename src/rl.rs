@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::Hash};
 
-use indicatif::ProgressIterator;
+use indicatif::{ProgressIterator, ProgressStyle};
 use num::Rational64;
 use rand::Rng;
 
@@ -20,7 +20,9 @@ pub fn train_monte_carlo_exploring_starts<
 ) -> HashMap<State, Action> {
     let mut policy = HashMap::new();
     let mut q: HashMap<State, HashMap<Action, Rational64>> = HashMap::new();
-    for _ in (0..episodes).progress() {
+    for _ in (0..episodes)
+        .progress_with_style(ProgressStyle::with_template("{wide_bar} {pos}/{len} ({eta_precise} remaining)").unwrap())
+    {
         let mut state_action = explore_starts(rng);
         let mut episode: Vec<((State, Action), i64)> = Vec::new();
         loop {
