@@ -82,7 +82,7 @@ fn play_dealer<R: Rng>(mut dealer_card: u8, rng: &mut R) -> u8 {
     }
 }
 
-pub enum NextStateResult {
+enum NextStateResult {
     Some(State),
     End(Ordering)
 }
