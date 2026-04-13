@@ -1,3 +1,15 @@
+// Rules of blackjack:
+// - Assume an infinite deck so that card counting does not help.
+// - Card values:
+//      - Aces have the value of 1 or 11, whichever results in the higher score for the player without going bust.
+//      - Face cards count as 10.
+//      - All other cards have their face value.
+// - The objective for each player is to have hand with the highest possible value less than or equal to 21.
+// - A hand whose value is over 21 is called a "bust" and is an instant win for the opposite player.
+// - At the start of the game, the dealer deals himself one face-up card.
+// - The player's turn then commences. The dealer hands cards to the player as long as the player asks for a hit.
+// - Once the player's turn has ended, the dealer's turn begins. The dealer hits himself until his score is >= 17, or he has gone bust.
+
 use std::{cmp::Ordering, hash::Hash};
 
 use inquire::Confirm;
@@ -8,8 +20,10 @@ use rand::Rng;
 #[derive(Clone, Copy, Eq, PartialEq)]
 struct State {
     /// Player's current score, in 12..21 for non-terminal states.
+    /// We don't bother representing states with player scores less than 12,
+    /// because in those states the player should always hit.
     sum: u8,
-    /// Dealer's current card, in 0..10.
+    /// Dealer's face-up card, in 0..10.
     dealer_card: u8,
     /// Whether or not the player holds a "usable" ace: an ace that is being counted as 11 points.
     usable_ace: bool,
