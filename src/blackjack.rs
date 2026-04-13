@@ -1,7 +1,8 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{cmp::Ordering, hash::Hash};
 
+use inquire::Confirm;
+use log::info;
 use rand::Rng;
-use reinforcement_learning::rl::train_monte_carlo_exploring_starts;
 
 /// A non-terminal Blackjack state.
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -35,7 +36,9 @@ impl Hash for State {
 /// 1 => Ace, which may be worth 1 or 11 points.
 /// n => Pip card n, worth n points.
 fn draw_card<R: Rng>(rng: &mut R) -> u8 {
-    rng.random_range(-3i8..10i8).max(0) as u8
+    let card = rng.random_range(-3i8..10i8).max(0) as u8;
+    info!("Drew card: {card}");
+    return card;
 }
 
 /// Get the score of a card, treating aces as 1 point.
@@ -65,88 +68,70 @@ fn play_dealer<R: Rng>(mut dealer_card: u8, rng: &mut R) -> u8 {
     }
 }
 
-/// Display a Blackjack policy.
-fn display_policy(policy: HashMap<State, bool>) {
-    println!("Policy (S for Stick, H for Hit):");
-    println!("Usable ace?     No                    Yes");
-    println!("Dealer Card     X A 2 3 4 5 6 7 8 9   X A 2 3 4 5 6 7 8 9");
-    for sum in 12..21 {
-        print!("Player Sum {sum}");
-        for usable_ace in [false, true] {
-            print!("  ");
-            for dealer_card in 0..10 {
-                let state = State {
-                    sum,
-                    dealer_card,
-                    usable_ace,
-                };
-                let symbol = match policy.get(&state) {
-                    Some(false) => "S",
-                    Some(true) => "H",
-                    None => "?",
-                };
-                print!(" {symbol}");
-            }
+pub enum NextStateResult {
+    Some(State),
+    End(Ordering)
+}
+
+fn next_state<R: Rng>(state: State, hit: bool, rng: &mut R) -> NextStateResult {
+    let mut state = state;
+    if hit {
+        state.sum += card_value(draw_card(rng));
+        if state.sum == 21 {
+            // intentionally left blank
+        } else if state.sum < 21 {
+            return NextStateResult::Some(state);
+        } else if state.usable_ace {
+            state.sum -= 10;
+            state.usable_ace = false;
+            return NextStateResult::Some(state);
+        } else {
+            info!("Player went bust");
+            return NextStateResult::End(Ordering::Less);
         }
-        println!();
     }
+    info!("Player score {}. Dealer's turn now", state.sum);
+
+    let dealer_sum = play_dealer(state.dealer_card, rng);
+    return NextStateResult::End(if dealer_sum > 21 {
+            info!("Dealer went bust");
+            Ordering::Greater
+        } else {
+            info!("Dealer score {dealer_sum}");
+            state.sum.cmp(&dealer_sum)
+        }
+    );
 }
 
 fn main() {
+    env_logger::Builder::new().filter_level(log::LevelFilter::Info).init();
     let mut rng = rand::rng();
-    let policy: HashMap<State, bool> = train_monte_carlo_exploring_starts(
-        10000000,
-        |rng| {
-            (
-                State {
-                    sum: rng.random_range(12..21),
-                    dealer_card: rng.random_range(0..10),
-                    usable_ace: rng.random_bool(0.5),
-                },
-                rng.random_bool(0.5),
-            )
-        },
-        |(mut state, hit), rng| {
-            if hit {
-                state.sum += card_value(draw_card(rng));
-                if state.sum == 21 {
-                    // intentionally left blank
-                } else if state.sum < 21 {
-                    return (Some(state), 0);
-                } else if state.usable_ace {
-                    state.sum -= 10;
-                    state.usable_ace = false;
-                    return (Some(state), 0);
-                } else {
-                    return (None, -1);
-                }
+    let mut state = State {
+        sum: rng.random_range(12..21),
+        dealer_card: rng.random_range(0..10),
+        usable_ace: rng.random_bool(0.5),
+    };
+    let ordering: Ordering;
+    loop {
+        info!(
+            "Your score: {} Usable ace: {} Dealer card: {}",
+            state.sum,
+            if state.usable_ace { "Y" } else { "N" },
+            state.dealer_card
+        );
+        let hit = Confirm::new("Hit?").prompt().unwrap();
+        match next_state(state, hit, &mut rng) {
+            NextStateResult::Some(new_state) => {state = new_state;},
+            NextStateResult::End(new_ordering) => {
+                ordering = new_ordering;
+                break;
             }
+        }
+    }
 
-            let dealer_sum = play_dealer(state.dealer_card, rng);
-            return (
-                None,
-                if dealer_sum > 21 {
-                    1
-                } else {
-                    state.sum.cmp(&dealer_sum) as i64
-                },
-            );
-        },
-        &mut rng,
-    );
-    display_policy(policy);
-    // The optimal policy should be...
-    //
-    // Policy (S for Stick, H for Hit):
-    // Usable ace?     No                    Yes
-    // Dealer Card     X A 2 3 4 5 6 7 8 9   X A 2 3 4 5 6 7 8 9
-    // Player Sum 12   H H H H S S S H H H   H H H H H H H H H H
-    // Player Sum 13   H H S S S S S H H H   H H H H H H H H H H
-    // Player Sum 14   H H S S S S S H H H   H H H H H H H H H H
-    // Player Sum 15   H H S S S S S H H H   H H H H H H H H H H
-    // Player Sum 16   H H S S S S S H H H   H H H H H H H H H H
-    // Player Sum 17   S S S S S S S S S S   H H H H H H H H H H
-    // Player Sum 18   S S S S S S S S S S   H H S S S S S S S H
-    // Player Sum 19   S S S S S S S S S S   S S S S S S S S S S
-    // Player Sum 20   S S S S S S S S S S   S S S S S S S S S S
+    match ordering {
+        Ordering::Less => info!("Dealer wins"),
+        Ordering::Greater => info!("Player wins"),
+        Ordering::Equal => info!("Tie"),
+    }
 }
