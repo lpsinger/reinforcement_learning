@@ -12,27 +12,33 @@
 
 use std::{cmp::Ordering, hash::Hash};
 
-use inquire::Confirm;
 use log::info;
 use rand::Rng;
 
 /// A non-terminal Blackjack state.
 #[derive(Clone, Copy, Eq, PartialEq)]
-struct State {
+pub struct State {
     /// Player's current score, in 12..21 for non-terminal states.
     /// We don't bother representing states with player scores less than 12,
     /// because in those states the player should always hit.
-    sum: u8,
+    pub sum: u8,
     /// Dealer's face-up card, in 0..10.
-    dealer_card: u8,
+    pub dealer_card: u8,
     /// Whether or not the player holds a "usable" ace: an ace that is being counted as 11 points.
-    usable_ace: bool,
+    pub usable_ace: bool,
 }
 
 /// Map each non-terminal Blackjack state onto a unique unsigned integer, 0..180.
 impl From<&State> for u8 {
     fn from(value: &State) -> Self {
         ((value.sum - 12) * 10 + value.dealer_card) * 2 + value.usable_ace as u8
+    }
+}
+
+/// Map each non-terminal Blackjack state onto a unique unsigned integer, 0..180.
+impl From<&State> for usize {
+    fn from(value: &State) -> Self {
+        u8::from(value) as usize
     }
 }
 
@@ -82,12 +88,12 @@ fn play_dealer<R: Rng>(mut dealer_card: u8, rng: &mut R) -> u8 {
     }
 }
 
-enum NextStateResult {
+pub enum NextStateResult {
     Some(State),
-    End(Ordering)
+    End(Ordering),
 }
 
-fn next_state<R: Rng>(state: State, hit: bool, rng: &mut R) -> NextStateResult {
+pub fn next_state<R: Rng>(state: State, hit: bool, rng: &mut R) -> NextStateResult {
     let mut state = state;
     if hit {
         state.sum += card_value(draw_card(rng));
@@ -108,44 +114,10 @@ fn next_state<R: Rng>(state: State, hit: bool, rng: &mut R) -> NextStateResult {
 
     let dealer_sum = play_dealer(state.dealer_card, rng);
     return NextStateResult::End(if dealer_sum > 21 {
-            info!("Dealer went bust");
-            Ordering::Greater
-        } else {
-            info!("Dealer score {dealer_sum}");
-            state.sum.cmp(&dealer_sum)
-        }
-    );
-}
-
-fn main() {
-    env_logger::Builder::new().filter_level(log::LevelFilter::Info).init();
-    let mut rng = rand::rng();
-    let mut state = State {
-        sum: rng.random_range(12..21),
-        dealer_card: rng.random_range(0..10),
-        usable_ace: rng.random_bool(0.5),
-    };
-    let ordering: Ordering;
-    loop {
-        info!(
-            "Your score: {} Usable ace: {} Dealer card: {}",
-            state.sum,
-            if state.usable_ace { "Y" } else { "N" },
-            state.dealer_card
-        );
-        let hit = Confirm::new("Hit?").prompt().unwrap();
-        match next_state(state, hit, &mut rng) {
-            NextStateResult::Some(new_state) => {state = new_state;},
-            NextStateResult::End(new_ordering) => {
-                ordering = new_ordering;
-                break;
-            }
-        }
-    }
-
-    match ordering {
-        Ordering::Less => info!("Dealer wins"),
-        Ordering::Greater => info!("Player wins"),
-        Ordering::Equal => info!("Tie"),
-    }
+        info!("Dealer went bust");
+        Ordering::Greater
+    } else {
+        info!("Dealer score {dealer_sum}");
+        state.sum.cmp(&dealer_sum)
+    });
 }

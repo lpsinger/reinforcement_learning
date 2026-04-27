@@ -5,10 +5,15 @@ edition = "2024"
 
 [dependencies]
 env_logger = "0.11.10"
+indicatif = "0.18.4"
 inquire = "0.9.4"
 log = "0.4.29"
 rand = "0.9.2"
 
 [[bin]]
-name = "blackjack"
-path = "src/blackjack.rs"
+name = "play"
+path = "src/play.rs"
+
+[[bin]]
+name = "rl"
+path = "src/rl.rs"
